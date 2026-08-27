@@ -233,7 +233,9 @@ function renderCase(c, isTutorial) {
   const left = el(`<div class="panel"><h4>${board ? "Tabuleiro" : "Grelha de dedução"}
     <button class="scan-link" data-scan="${scanName}">ver página do livro ↗</button></h4></div>`);
   left.querySelector(".scan-link").addEventListener("click", () => openScan(scanName, c.title));
-  left.append(board ? buildAuthBoard(c, board) : buildGrid(c));
+  let boardApi = null;
+  if (board) { const b = buildAuthBoard(c, board); left.append(b.node); boardApi = b.api; }
+  else left.append(buildGrid(c));
   layout.append(left);
 
   /* ---- RIGHT: clues + rooms + reveal ---- */
@@ -269,7 +271,7 @@ function renderCase(c, isTutorial) {
   if (c.note) rooms.append(el(`<div class="note-box">${esc(c.note)}</div>`));
   right.append(rooms);
 
-  right.append(buildReveal(c));
+  right.append(buildKillerPanel(c, boardApi));
 }
 
 /* ---------------- password (2nd letter of each suspect name, in order) ---------------- */
@@ -310,11 +312,58 @@ function walkHtml(c) {
     : `<div class="walk" style="color:var(--text-mute);font-size:12px;margin-top:10px">Resolução passo-a-passo ainda não transcrita — consulta as páginas de solução do livro.</div>`;
 }
 
-/* ---------------- reveal panel (right column) — always password-gated ---------------- */
-function buildReveal(c) {
+/* ---------------- "O assassino" panel: pick + verify, then password reveal ---------------- */
+function buildKillerPanel(c, boardApi) {
   const box = el(`<div class="panel" style="margin-top:16px"><h4>O assassino</h4></div>`);
   const holder = el(`<div></div>`);
   box.append(holder);
+
+  const savedGuess = LS.get(guessKey(c.id), "");
+  const pickRow = el(`
+    <div class="killer-pick">
+      <select>
+        <option value="">— escolhe o assassino —</option>
+        ${c.suspects.map((s) => `<option ${s.n === savedGuess ? "selected" : ""}>${esc(s.n)}</option>`).join("")}
+      </select>
+      <button class="btn primary" data-a="verify" disabled>Verificar</button>
+    </div>
+  `);
+  const verdict = el(`<div class="verdict"></div>`);
+  const sel = $("select", pickRow), vbtn = $('[data-a="verify"]', pickRow);
+  vbtn.disabled = !sel.value;
+  sel.addEventListener("change", () => {
+    vbtn.disabled = !sel.value;
+    LS.set(guessKey(c.id), sel.value);
+    verdict.textContent = ""; verdict.className = "verdict";
+  });
+  vbtn.addEventListener("click", () => {
+    const pick = sel.value;
+    if (!pick) return;
+    if (boardApi) {
+      const boardOk = boardApi.flashCheck();
+      if (!boardOk) {
+        verdict.className = "verdict wrong";
+        verdict.textContent = "Ainda há posições erradas ou em falta no tabuleiro (a vítima também conta).";
+      } else if (pick !== c.killer) {
+        verdict.className = "verdict wrong";
+        verdict.textContent = "As posições no tabuleiro estão certas — mas esse não é o assassino.";
+      } else {
+        verdict.className = "verdict right";
+        verdict.textContent = "✓ Tudo certo! Caso resolvido.";
+        LS.set(solvedKey(c.id), true);
+      }
+    } else {
+      if (pick === c.killer) {
+        verdict.className = "verdict right";
+        verdict.textContent = "✓ Certo! Caso resolvido.";
+        LS.set(solvedKey(c.id), true);
+      } else {
+        verdict.className = "verdict wrong";
+        verdict.textContent = "✕ Esse não é o assassino. Continua a investigar.";
+      }
+    }
+  });
+  holder.append(pickRow, verdict);
 
   function showReveal() {
     holder.innerHTML = "";
@@ -326,8 +375,7 @@ function buildReveal(c) {
       </div>
     `));
   }
-
-  const sp = el(`<div class="spoiler">Preferes desistir? <button>Revelar solução</button></div>`);
+  const sp = el(`<div class="spoiler" style="margin-top:14px">Preferes desistir? <button>Revelar solução</button></div>`);
   sp.querySelector("button").addEventListener("click", async () => {
     if (await askPassword(c)) { LS.set(guessKey(c.id), c.killer); showReveal(); }
   });
@@ -408,7 +456,6 @@ function buildAuthBoard(c, board) {
         <button class="tool-btn" data-mode="note">Nota</button>
         <button class="tool-btn" data-mode="erase">Apagar</button>
       </div>
-      <button class="mini" data-act="check">Verificar</button>
       <button class="mini" data-act="reveal">Revelar solução</button>
       <button class="mini" data-act="clear">Limpar</button>
     </div>
@@ -417,7 +464,7 @@ function buildAuthBoard(c, board) {
   const stage = el(`<div class="aboard-stage"></div>`);
   const verdict = el(`<div class="verdict"></div>`);
   const legend = el(`<div class="board-legend"></div>`);
-  const hint = el(`<div class="grid-hint"><b>Colocar</b> = definitivo (risca linha/coluna e apaga as hipóteses dessa pessoa). <b>Hipótese</b> = vários palpites a cinzento. Coloca também a <b>vítima</b>. <b>Verificar</b> só confirma se estiver tudo certo, vítima incluída.</div>`);
+  const hint = el(`<div class="grid-hint"><b>Colocar</b> = definitivo (risca linha/coluna e apaga as hipóteses dessa pessoa). <b>Hipótese</b> = vários palpites a cinzento. Coloca também a <b>vítima</b>. Quando tiveres tudo, escolhe o assassino em «O assassino» e carrega em <b>Verificar</b>.</div>`);
   root.append(picker, tools, stage, verdict, legend, hint);
 
   function selectionUI() {
@@ -660,37 +707,37 @@ function buildAuthBoard(c, board) {
       return;
     }
 
-    if (act === "check") {
-      const firmCell = (pred) => Object.keys(st.cells).find((k) => pred(st.cells[k]));
+  });
+
+  function firmCell(pred) { return Object.keys(st.cells).find((k) => pred(st.cells[k])); }
+  function allCorrect() {
+    for (const s of suspects) {
+      const k = firmCell((v) => v?.kind === "place" && v.who === s.i);
+      if (!k || board.solution[s.n] !== k) return false;
+    }
+    const vk = firmCell((v) => v?.kind === "victim" && !v.guess);
+    return !!(vk && board.solution.__VICTIM__ === vk);
+  }
+  function flashCheck() {
+    const ok = allCorrect();
+    if (ok) {
       const map = {};
-      let allOk = true;
       for (const s of suspects) {
         const k = firmCell((v) => v?.kind === "place" && v.who === s.i);
-        if (k && board.solution[s.n] === k) map[k] = "ok";
-        else allOk = false;
+        if (k) map[k] = "ok";
       }
       const vk = firmCell((v) => v?.kind === "victim" && !v.guess);
-      if (vk && board.solution.__VICTIM__ === vk) map[vk] = "ok";
-      else allOk = false;
-
-      if (allOk) {
-        checkMap = map; draw();
-        verdict.className = "verdict right";
-        verdict.textContent = "✓ Tudo certo, vítima incluída! Vê quem ficou sozinho com a vítima na mesma divisão.";
-        LS.set(solvedKey(c.id), true);
-      } else {
-        checkMap = null; draw();
-        verdict.className = "verdict wrong";
-        verdict.textContent = "Ainda há erros ou posições em falta (a vítima também conta). Continua.";
-      }
-      return;
-    }
-  });
+      if (vk) map[vk] = "ok";
+      checkMap = map;
+    } else checkMap = null;
+    draw();
+    return ok;
+  }
 
   selectionUI();
   recomputeAutoX();
   draw();
-  return root;
+  return { node: root, api: { allCorrect, flashCheck } };
 }
 
 /* ============================ DEDUCTION GRID ============================ */

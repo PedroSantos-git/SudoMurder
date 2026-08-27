@@ -20,7 +20,7 @@ export const NONOCC = new Set([
   "tv", "plant", "table", "shelf", "box", "statue", "present", "easel", "catapult",
   "weaponrack", "vase", "locker", "punchbag", "boulder", "rubble", "tree",
   "trashcan", "barrel", "lion", "cow", "pig", "gaspump", "register", "cashreg",
-  "bath", "sink", "toilet", "counter",
+  "bath", "sink", "toilet", "counter", "cabinet",
 ]);
 
 export const ICON = {
@@ -30,7 +30,7 @@ export const ICON = {
   cashreg: "🧾", register: "🧾", vase: "🏺", punchbag: "🥊", locker: "🔒",
   boulder: "🪨", rubble: "🧱", weaponrack: "⚔️", easel: "🖼️", catapult: "🎯",
   towel: "🧣", mud: "🟤", sofa: "🛋️", stool: "🪑",
-  bath: "🛁", sink: "🚰", toilet: "🚽", counter: "🍳",
+  bath: "🛁", sink: "🚰", toilet: "🚽", counter: "🍳", cabinet: "🗄️",
 };
 
 export const BOARDS = {
@@ -118,9 +118,9 @@ export const BOARDS = {
     },
     multi: [
       { t: "bed", cells: ["1,1", "2,1"] },
-      { t: "bath", cells: ["3,1", "4,1"] },
+      { t: "rug", cells: ["3,1", "4,1"] },
       { t: "bed", cells: ["4,2", "4,3"] },
-      { t: "counter", cells: ["1,5", "1,6"] },
+      { t: "cabinet", cells: ["1,5", "1,6"] },
     ],
     windows: ["4,6,E"],
     solution: {

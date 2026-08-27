@@ -1,6 +1,7 @@
 import { CASES, TUTORIAL_CASE } from "./data.js";
 import { RULES } from "./rules.js";
 import { WALKTHROUGHS } from "./walkthroughs.js";
+import { BOARDS, NONOCC, ICON } from "./boards.js";
 
 /* ============================ storage ============================ */
 const LS = {
@@ -190,6 +191,7 @@ function caseCard(c) {
         <span><b>${c.suspects.length}</b> suspeitos</span>
         <span><b>${(c.rooms || []).length}</b> divisões</span>
         ${r ? `<span><b>${r}×${cc}</b> grelha</span>` : ""}
+        ${BOARDS[c.id] ? `<span>· tabuleiro ✓</span>` : ""}
         ${WALKTHROUGHS[c.id] ? `<span>· resolução ✓</span>` : ""}
       </div>
     </a>
@@ -224,9 +226,13 @@ function renderCase(c, isTutorial) {
   const layout = el(`<div class="layout"></div>`);
   wrap.append(layout);
 
-  /* ---- LEFT: interactive grid ---- */
-  const left = el(`<div class="panel"><h4>Grelha de dedução</h4></div>`);
-  left.append(buildGrid(c));
+  /* ---- LEFT: interactive board / grid ---- */
+  const board = BOARDS[c.id];
+  const scanName = isTutorial ? "tutorial" : "case" + c.id;
+  const left = el(`<div class="panel"><h4>${board ? "Tabuleiro" : "Grelha de dedução"}
+    <button class="scan-link" data-scan="${scanName}">ver página do livro ↗</button></h4></div>`);
+  left.querySelector(".scan-link").addEventListener("click", () => openScan(scanName, c.title));
+  left.append(board ? buildAuthBoard(c, board) : buildGrid(c));
   layout.append(left);
 
   /* ---- RIGHT: clues + rooms + reveal ---- */
@@ -320,6 +326,190 @@ function buildReveal(c) {
   spoilerWrap.append(btn);
   box.append(spoilerWrap);
   return box;
+}
+
+/* ============================ SCAN LIGHTBOX ============================ */
+function openScan(name, title) {
+  const lb = el(`
+    <div class="lightbox">
+      <div class="lb-inner">
+        <div class="lb-head"><span>${esc(title)} — página do livro</span><button class="lb-x">✕</button></div>
+        <img src="/assets/pages/${name}.jpg" alt="Página do livro — ${esc(title)}">
+      </div>
+    </div>
+  `);
+  const close = () => lb.remove();
+  lb.addEventListener("click", (e) => { if (e.target === lb || e.target.classList.contains("lb-x")) close(); });
+  document.addEventListener("keydown", function esc2(e) { if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc2); } });
+  document.body.append(lb);
+}
+
+/* ============================ AUTHENTIC BOARD ============================ */
+const ROOM_HUES = [200, 265, 340, 150, 35, 55, 300, 175, 240, 15];
+
+function buildAuthBoard(c, board) {
+  const { rows, cols } = board;
+  const roomOf = {};
+  board.rooms.forEach((rm, i) => rm.cells.forEach((k) => (roomOf[k] = i)));
+  const suspects = c.suspects.map((s, i) => ({ ...s, i, color: colorFor(i), ini: initials(s.n) }));
+
+  let st = LS.get(gridKey(c.id), null);
+  if (!st || !st.cells) st = { cells: {} };
+  let tool = { mode: "place", who: 0 };
+  let checkMap = null; // key -> "ok" | "bad"
+  const save = () => LS.set(gridKey(c.id), st);
+
+  const root = el(`<div></div>`);
+
+  const picker = el(`<div class="suspect-picker"></div>`);
+  suspects.forEach((s) => picker.append(el(`<button data-i="${s.i}"><span class="sw" style="background:${s.color}"></span>${esc(s.n)}</button>`)));
+
+  const tools = el(`
+    <div class="grid-tools">
+      <div class="group">
+        <button class="tool-btn" data-mode="place">Colocar</button>
+        <button class="tool-btn" data-mode="x">✕</button>
+        <button class="tool-btn" data-mode="note">Nota</button>
+        <button class="tool-btn" data-mode="erase">Apagar</button>
+      </div>
+      <button class="mini" data-act="check">Verificar</button>
+      <button class="mini" data-act="reveal">Revelar solução</button>
+      <button class="mini" data-act="clear">Limpar</button>
+    </div>
+  `);
+
+  const stage = el(`<div class="aboard-stage"></div>`);
+  const verdict = el(`<div class="verdict"></div>`);
+  const hint = el(`<div class="grid-hint">Só é possível colocar pessoas em células livres (não em mesas, TVs, plantas, estantes…). A vítima vai para a última célula livre.</div>`);
+  root.append(picker, tools, stage, verdict, hint);
+
+  function selectionUI() {
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", tool.mode === "place" && +b.dataset.i === tool.who));
+    tools.querySelectorAll(".tool-btn").forEach((b) => {
+      const on = b.dataset.mode === tool.mode;
+      b.classList.toggle("sel", on);
+      b.classList.toggle("x", on && tool.mode === "x");
+      b.classList.toggle("note", on && tool.mode === "note");
+    });
+  }
+
+  function wall(r, cc, side) {
+    const map = { N: [r - 1, cc], E: [r, cc + 1], S: [r + 1, cc], W: [r, cc - 1] };
+    const [nr, nc] = map[side];
+    if (nr < 1 || nr > rows || nc < 1 || nc > cols) return true;
+    return roomOf[nr + "," + nc] !== roomOf[r + "," + cc];
+  }
+
+  function draw() {
+    const grid = el(`<div class="aboard" style="grid-template-columns:repeat(${cols},1fr);aspect-ratio:${cols}/${rows}"></div>`);
+    for (let r = 1; r <= rows; r++) {
+      for (let cc = 1; cc <= cols; cc++) {
+        const key = r + "," + cc;
+        const ri = roomOf[key];
+        const cell = el(`<div class="acell" data-key="${key}"></div>`);
+        cell.style.background = ri == null ? "var(--bg)" : `hsl(${ROOM_HUES[ri % ROOM_HUES.length]} 34% 15%)`;
+        ["N", "E", "S", "W"].forEach((s) => { if (wall(r, cc, s)) cell.classList.add("w" + s); });
+        const o = board.obj[key];
+        if (o) {
+          if (o === "rug") cell.classList.add("has-rug");
+          else if (o === "bed") { cell.classList.add("has-bed"); cell.append(el(`<span class="oicon">${ICON.bed}</span>`)); }
+          else { cell.append(el(`<span class="oicon">${ICON[o] || "▪"}</span>`)); }
+          if (NONOCC.has(o)) cell.classList.add("blk");
+        }
+        // windows
+        board.windows.forEach((w) => {
+          const [wr, wc, ws] = w.split(",");
+          if (+wr === r && +wc === cc) cell.append(el(`<span class="win win-${ws}"></span>`));
+        });
+        const cs = st.cells[key];
+        if (cs) {
+          if (cs.kind === "place") {
+            const s = suspects[cs.who];
+            if (s) cell.append(el(`<span class="tok-badge" style="--tc:${s.color}">${esc(s.ini)}</span>`));
+          } else if (cs.kind === "victim") {
+            cell.append(el(`<span class="tok-badge victim">${esc(initials(c.victim))}</span>`));
+          } else if (cs.kind === "x") cell.append(el(`<span class="cell-x">✕</span>`));
+          else if (cs.kind === "note") cell.append(el(`<span class="cell-note">${esc(cs.text)}</span>`));
+        }
+        if (checkMap && checkMap[key]) cell.classList.add("chk-" + checkMap[key]);
+        grid.append(cell);
+      }
+    }
+    stage.innerHTML = "";
+    stage.append(grid);
+  }
+
+  stage.addEventListener("click", (e) => {
+    const cell = e.target.closest(".acell"); if (!cell) return;
+    const key = cell.dataset.key;
+    checkMap = null;
+    if (tool.mode === "erase") delete st.cells[key];
+    else if (tool.mode === "x") {
+      if (st.cells[key]?.kind === "x") delete st.cells[key]; else st.cells[key] = { kind: "x" };
+    } else if (tool.mode === "note") {
+      const cur = st.cells[key]?.kind === "note" ? st.cells[key].text : "";
+      const t = prompt("Nota:", cur || ""); if (t === null) return;
+      if (!t.trim()) delete st.cells[key]; else st.cells[key] = { kind: "note", text: t.trim().slice(0, 12) };
+    } else {
+      if (cell.classList.contains("blk")) { cell.animate([{ transform: "translateX(-2px)" }, { transform: "translateX(2px)" }, { transform: "translateX(0)" }], 150); return; }
+      const ex = st.cells[key];
+      if (ex?.kind === "place" && ex.who === tool.who) delete st.cells[key];
+      else {
+        for (const k of Object.keys(st.cells)) if (st.cells[k]?.kind === "place" && st.cells[k].who === tool.who) delete st.cells[k];
+        st.cells[key] = { kind: "place", who: tool.who };
+      }
+    }
+    save(); draw();
+  });
+
+  picker.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    tool = { mode: "place", who: +b.dataset.i }; selectionUI();
+  });
+
+  tools.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.mode) { tool.mode = b.dataset.mode; selectionUI(); return; }
+    const act = b.dataset.act;
+    if (act === "clear") { if (confirm("Limpar o tabuleiro deste caso?")) { st.cells = {}; checkMap = null; save(); draw(); } return; }
+    if (act === "reveal") {
+      st.cells = {};
+      for (const [name, pos] of Object.entries(board.solution)) {
+        if (name === "__VICTIM__") st.cells[pos] = { kind: "victim" };
+        else { const idx = suspects.findIndex((s) => s.n === name); if (idx >= 0) st.cells[pos] = { kind: "place", who: idx }; }
+      }
+      checkMap = null; save(); draw();
+      verdict.className = "verdict right";
+      verdict.textContent = `A vítima (${c.victim}) ficou sozinha com ${c.killer}. ${c.killer} é o assassino.`;
+      LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
+      return;
+    }
+    if (act === "check") {
+      checkMap = {};
+      let ok = 0, total = suspects.length;
+      for (const s of suspects) {
+        const placedKey = Object.keys(st.cells).find((k) => st.cells[k]?.kind === "place" && st.cells[k].who === s.i);
+        if (!placedKey) continue;
+        if (board.solution[s.n] === placedKey) { checkMap[placedKey] = "ok"; ok++; }
+        else checkMap[placedKey] = "bad";
+      }
+      draw();
+      if (ok === total) {
+        const vpos = board.solution.__VICTIM__;
+        verdict.className = "verdict right";
+        verdict.textContent = `✓ Todos certos! A vítima estava em L${vpos.split(",")[0]}C${vpos.split(",")[1]} — ${c.killer} é o assassino.`;
+        LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
+      } else {
+        verdict.className = "verdict";
+        verdict.textContent = `${ok}/${total} suspeitos na posição correta.`;
+      }
+      return;
+    }
+  });
+
+  selectionUI();
+  draw();
+  return root;
 }
 
 /* ============================ DEDUCTION GRID ============================ */

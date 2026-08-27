@@ -60,10 +60,10 @@ export const BOARDS = {
     ],
     obj: {
       "2,3": "rug",
-      "2,5": "bed", "3,5": "bed",
       "4,1": "tv", "6,1": "tv", "5,3": "plant",
       "4,6": "tv", "5,6": "plant",
     },
+    multi: [{ t: "bed", cells: ["2,5", "3,5"] }],
     windows: ["1,2,N", "1,5,N"],
     solution: {
       "Axel": "1,2", "Bella": "5,1", "Cora": "2,3",

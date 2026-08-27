@@ -271,60 +271,72 @@ function renderCase(c, isTutorial) {
   right.append(buildReveal(c));
 }
 
-/* ---------------- reveal / guess panel ---------------- */
+/* ---------------- password (2nd letter of each suspect name, in order) ---------------- */
+function passwordFor(c) {
+  return c.suspects.map((s) => (s.n[1] || "")).join("").toLowerCase();
+}
+function askPassword(c) {
+  return new Promise((resolve) => {
+    const modal = el(`
+      <div class="lightbox">
+        <div class="pw-box">
+          <div class="pw-title">Palavra-passe da solução</div>
+          <p class="pw-hint">Escreve a <b>2.ª letra do nome de cada suspeito</b>, pela ordem em que aparecem no caso (tudo junto, sem espaços).</p>
+          <input type="password" autocomplete="off" placeholder="••••••">
+          <div class="pw-err"></div>
+          <div class="pw-actions"><button class="mini" data-a="cancel">Cancelar</button><button class="btn primary" data-a="ok">Confirmar</button></div>
+        </div>
+      </div>
+    `);
+    const inp = $("input", modal), err = $(".pw-err", modal);
+    const done = (v) => { modal.remove(); resolve(v); };
+    const submit = () => {
+      if (inp.value.trim().toLowerCase() === passwordFor(c)) done(true);
+      else { err.textContent = "Palavra-passe errada."; inp.select(); }
+    };
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal || e.target.dataset.a === "cancel") done(false);
+      if (e.target.dataset.a === "ok") submit();
+    });
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") done(false); });
+    document.body.append(modal);
+    inp.focus();
+  });
+}
+
+function walkHtml(c) {
+  return WALKTHROUGHS[c.id]
+    ? `<div class="walk"><ol>${WALKTHROUGHS[c.id].map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>`
+    : `<div class="walk" style="color:var(--text-mute);font-size:12px;margin-top:10px">Resolução passo-a-passo ainda não transcrita — consulta as páginas de solução do livro.</div>`;
+}
+
+/* ---------------- reveal panel (right column) ---------------- */
 function buildReveal(c) {
   const box = el(`<div class="panel" style="margin-top:16px"><h4>O assassino</h4></div>`);
-  const names = c.suspects.map((s) => s.n);
-  const savedGuess = LS.get(guessKey(c.id), "");
   const solved = LS.get(solvedKey(c.id), false);
+  const holder = el(`<div></div>`);
+  box.append(holder);
 
-  const sel = el(`
-    <div class="killer-select">
-      <select>
-        <option value="">— o teu palpite —</option>
-        ${names.map((n) => `<option ${n === savedGuess ? "selected" : ""}>${esc(n)}</option>`).join("")}
-      </select>
-      <button class="mini" id="check">Verificar</button>
-    </div>
-  `);
-  const verdict = el(`<div class="verdict"></div>`);
-  box.append(sel, verdict);
-
-  function showVerdict() {
-    const g = LS.get(guessKey(c.id), "");
-    if (!g) { verdict.className = "verdict"; verdict.textContent = ""; return; }
-    if (g === c.killer) {
-      verdict.className = "verdict right";
-      verdict.textContent = `✓ Certo! ${c.killer} é o assassino.`;
-      LS.set(solvedKey(c.id), true);
-    } else {
-      verdict.className = "verdict wrong";
-      verdict.textContent = `✕ ${g} não é. Tenta outra vez.`;
-    }
-  }
-  $("select", sel).addEventListener("change", (e) => { LS.set(guessKey(c.id), e.target.value); verdict.textContent = ""; verdict.className = "verdict"; });
-  $("#check", sel).addEventListener("click", showVerdict);
-  if (solved) showVerdict();
-
-  // spoiler reveal
-  const spoilerWrap = el(`<div style="margin-top:12px"></div>`);
-  const btn = el(`<div class="spoiler">Preferes desistir? <button>Revelar solução</button></div>`);
-  btn.querySelector("button").addEventListener("click", () => {
-    const rb = el(`
+  function showReveal() {
+    holder.innerHTML = "";
+    holder.append(el(`
       <div class="reveal-box">
         <div class="who">O assassino é…</div>
         <div class="name">${esc(c.killer)}</div>
-        ${WALKTHROUGHS[c.id]
-          ? `<div class="walk"><ol>${WALKTHROUGHS[c.id].map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>`
-          : `<div class="walk" style="color:var(--text-mute);font-size:12px;margin-top:10px">Resolução passo-a-passo ainda não transcrita para este caso — consulta as páginas de solução do livro.</div>`}
+        ${walkHtml(c)}
       </div>
-    `);
-    spoilerWrap.innerHTML = "";
-    spoilerWrap.append(rb);
-    LS.set(guessKey(c.id), c.killer);
-  });
-  spoilerWrap.append(btn);
-  box.append(spoilerWrap);
+    `));
+  }
+
+  if (solved) {
+    showReveal();
+  } else {
+    const sp = el(`<div class="spoiler">Preferes desistir? <button>Revelar solução</button></div>`);
+    sp.querySelector("button").addEventListener("click", async () => {
+      if (await askPassword(c)) { LS.set(solvedKey(c.id), true); LS.set(guessKey(c.id), c.killer); showReveal(); }
+    });
+    holder.append(sp);
+  }
   return box;
 }
 
@@ -363,23 +375,40 @@ function buildAuthBoard(c, board) {
   board.rooms.forEach((rm, i) => rm.cells.forEach((k) => (roomOf[k] = i)));
   const suspects = c.suspects.map((s, i) => ({ ...s, i, color: colorFor(i), ini: initials(s.n) }));
 
+  // multi-cell objects
+  const multiOf = new Map();
+  (board.multi || []).forEach((g) => {
+    const rs = g.cells.map((k) => k.split(",").map(Number));
+    const info = {
+      t: g.t, cells: g.cells,
+      minR: Math.min(...rs.map((p) => p[0])), maxR: Math.max(...rs.map((p) => p[0])),
+      minC: Math.min(...rs.map((p) => p[1])), maxC: Math.max(...rs.map((p) => p[1])),
+    };
+    g.cells.forEach((k) => multiOf.set(k, info));
+  });
+  const isBlocked = (key) => {
+    const g = multiOf.get(key);
+    if (g) return NONOCC.has(g.t);
+    return NONOCC.has(board.obj[key]);
+  };
+
   let st = LS.get(gridKey(c.id), null);
   if (!st || !st.cells) st = { cells: {} };
   let tool = { mode: "place", who: 0 };
-  let checkMap = null; // key -> "ok" | "bad"
+  let checkMap = null;
   const save = () => LS.set(gridKey(c.id), st);
-  const isBlocked = (key) => NONOCC.has(board.obj[key]);
 
   const root = el(`<div></div>`);
 
   const picker = el(`<div class="suspect-picker"></div>`);
   suspects.forEach((s) => picker.append(el(`<button data-i="${s.i}"><span class="sw" style="background:${s.color}"></span>${esc(s.n)}</button>`)));
+  picker.append(el(`<button data-i="V" class="pick-victim"><span class="sw" style="background:var(--accent)"></span>${esc(c.victim)} · vítima</button>`));
 
   const tools = el(`
     <div class="grid-tools">
       <div class="group">
-        <button class="tool-btn" data-mode="place" title="Marca a posição definitiva e risca linha+coluna">Colocar</button>
-        <button class="tool-btn" data-mode="guess" title="Hipótese (cinzento) — não risca nada">Hipótese</button>
+        <button class="tool-btn" data-mode="place" title="Posição definitiva — risca linha e coluna">Colocar</button>
+        <button class="tool-btn" data-mode="guess" title="Hipótese (cinzento) — permite várias por pessoa">Hipótese</button>
         <button class="tool-btn" data-mode="x" title="Riscar célula à mão">✕</button>
         <button class="tool-btn" data-mode="note">Nota</button>
         <button class="tool-btn" data-mode="erase">Apagar</button>
@@ -393,12 +422,12 @@ function buildAuthBoard(c, board) {
   const stage = el(`<div class="aboard-stage"></div>`);
   const verdict = el(`<div class="verdict"></div>`);
   const legend = el(`<div class="board-legend"></div>`);
-  const hint = el(`<div class="grid-hint"><b>Colocar</b> = posição definitiva (risca a linha e a coluna). <b>Hipótese</b> = palpite a cinzento. Só entram pessoas em células livres.</div>`);
+  const hint = el(`<div class="grid-hint"><b>Colocar</b> = definitivo (risca linha/coluna e apaga as hipóteses dessa pessoa). <b>Hipótese</b> = vários palpites a cinzento. Coloca também a <b>vítima</b>. <b>Verificar</b> só confirma se estiver tudo certo, vítima incluída.</div>`);
   root.append(picker, tools, stage, verdict, legend, hint);
 
   function selectionUI() {
     const needsWho = tool.mode === "place" || tool.mode === "guess";
-    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", needsWho && +b.dataset.i === tool.who));
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", needsWho && b.dataset.i === String(tool.who)));
     tools.querySelectorAll(".tool-btn").forEach((b) => {
       const on = b.dataset.mode === tool.mode;
       b.classList.toggle("sel", on);
@@ -415,18 +444,18 @@ function buildAuthBoard(c, board) {
     return roomOf[nr + "," + nc] !== roomOf[r + "," + cc];
   }
 
-  // rebuild every automatic ✕ from the current firm placements
+  // rebuild automatic ✕ from firm placements (suspects + firm victim)
   function recomputeAutoX() {
     for (const k of Object.keys(st.cells)) {
       if (st.cells[k]?.kind === "x" && st.cells[k].auto) delete st.cells[k];
     }
     for (const [k, v] of Object.entries(st.cells)) {
-      if (v?.kind !== "place") continue;
+      const firm = v?.kind === "place" || (v?.kind === "victim" && !v.guess);
+      if (!firm) continue;
       const [r, cc] = k.split(",").map(Number);
       const mark = (rr, ccc) => {
         const kk = rr + "," + ccc;
-        if (kk === k) return;
-        if (isBlocked(kk)) return;
+        if (kk === k || isBlocked(kk)) return;
         if (!st.cells[kk]) st.cells[kk] = { kind: "x", auto: true };
       };
       for (let i = 1; i <= cols; i++) mark(r, i);
@@ -446,24 +475,46 @@ function buildAuthBoard(c, board) {
         const cell = el(`<div class="acell" data-key="${key}"></div>`);
         cell.style.background = ri == null ? "var(--bg)" : `hsl(${ROOM_HUES[ri % ROOM_HUES.length]} 34% 15%)`;
         ["N", "E", "S", "W"].forEach((s) => { if (wall(r, cc, s)) cell.classList.add("w" + s); });
-        const o = board.obj[key];
-        if (o) {
-          if (o === "rug") cell.classList.add("has-rug");
-          else if (o === "bed") { cell.classList.add("has-bed"); cell.append(el(`<span class="oicon">${ICON.bed}</span>`)); }
-          else cell.append(el(`<span class="oicon">${ICON[o] || "▪"}</span>`));
-          if (NONOCC.has(o)) cell.classList.add("blk");
+
+        const mg = multiOf.get(key);
+        if (mg) {
+          if (NONOCC.has(mg.t)) cell.classList.add("blk");
+          const inG = (rr, ccc) => mg.cells.includes(rr + "," + ccc);
+          const cls = ["mo-piece", "mo-" + mg.t];
+          if (inG(r - 1, cc)) cls.push("in-N");
+          if (inG(r + 1, cc)) cls.push("in-S");
+          if (inG(r, cc - 1)) cls.push("in-W");
+          if (inG(r, cc + 1)) cls.push("in-E");
+          if (mg.t === "bed") {
+            const vert = (mg.maxR - mg.minR) >= (mg.maxC - mg.minC);
+            if (vert && r === mg.minR) cls.push("head-N");
+            if (!vert && cc === mg.minC) cls.push("head-W");
+          }
+          const piece = el(`<span class="${cls.join(" ")}"></span>`);
+          if (mg.t !== "bed" && mg.t !== "rug" && r === mg.minR && cc === mg.minC) piece.append(el(`<span class="oicon">${ICON[mg.t] || "▪"}</span>`));
+          cell.append(piece);
+        } else {
+          const o = board.obj[key];
+          if (o) {
+            if (o === "rug") cell.classList.add("has-rug");
+            else if (o === "bed") { cell.classList.add("has-bed"); cell.append(el(`<span class="oicon">${ICON.bed}</span>`)); }
+            else cell.append(el(`<span class="oicon">${ICON[o] || "▪"}</span>`));
+            if (NONOCC.has(o)) cell.classList.add("blk");
+          }
         }
-        board.windows.forEach((w) => {
-          const [wr, wc, ws] = w.split(",");
+
+        board.windows.forEach((win) => {
+          const [wr, wc, ws] = win.split(",");
           if (+wr === r && +wc === cc) cell.append(el(`<span class="win win-${ws}"></span>`));
         });
+
         const cs = st.cells[key];
         if (cs) {
           if (cs.kind === "place" || cs.kind === "guess") {
             const s = suspects[cs.who];
             if (s) cell.append(el(`<span class="tok-badge ${cs.kind === "guess" ? "guess" : ""}" style="--tc:${s.color}">${esc(s.ini)}</span>`));
           } else if (cs.kind === "victim") {
-            cell.append(el(`<span class="tok-badge victim">${esc(initials(c.victim))}</span>`));
+            cell.append(el(`<span class="tok-badge victim ${cs.guess ? "guess" : ""}">${esc(initials(c.victim))}</span>`));
           } else if (cs.kind === "x") cell.append(el(`<span class="cell-x ${cs.auto ? "auto" : ""}">✕</span>`));
           else if (cs.kind === "note") cell.append(el(`<span class="cell-note">${esc(cs.text)}</span>`));
         }
@@ -472,37 +523,29 @@ function buildAuthBoard(c, board) {
       }
     }
     wrap.append(grid);
-    // room name labels — placed on an object-free cell of the room (fallback: bottom wall)
+
+    // room labels: centred column, bottom of the room's lowest central cell
     const labels = el(`<div class="room-labels"></div>`);
     board.rooms.forEach((rm) => {
       const rs = rm.cells.map((k) => k.split(",").map(Number));
-      const cr = rs.reduce((s, p) => s + p[0], 0) / rs.length;
-      const cc = rs.reduce((s, p) => s + p[1], 0) / rs.length;
-      const free = rs.filter(([r, c]) => !board.obj[r + "," + c] && st.cells[r + "," + c]?.kind !== "place" && st.cells[r + "," + c]?.kind !== "guess" && st.cells[r + "," + c]?.kind !== "victim");
-      let x, y;
-      if (free.length) {
-        free.sort((a, b) => Math.hypot(a[0] - cr, a[1] - cc) - Math.hypot(b[0] - cr, b[1] - cc));
-        x = (free[0][1] - 0.5) / cols * 100;
-        y = (free[0][0] - 0.5) / rows * 100;
-      } else {
-        const maxR = Math.max(...rs.map((p) => p[0]));
-        const bc = rs.filter((p) => p[0] === maxR).map((p) => p[1]);
-        x = ((Math.min(...bc) - 1 + Math.max(...bc)) / 2) / cols * 100;
-        y = (maxR === rows ? maxR - 0.2 : maxR) / rows * 100;
-      }
+      const maxR = Math.max(...rs.map((p) => p[0]));
+      const bc = rs.filter((p) => p[0] === maxR).map((p) => p[1]);
+      const x = ((Math.min(...bc) - 1 + Math.max(...bc)) / 2) / cols * 100;
+      const y = maxR / rows * 100;
       const lab = el(`<span class="rlabel">${esc(rm.name)}</span>`);
       lab.style.left = x + "%";
       lab.style.top = y + "%";
       labels.append(lab);
     });
     wrap.append(labels);
+
     stage.innerHTML = "";
     stage.append(wrap);
     drawLegend();
   }
 
   function drawLegend() {
-    const types = [...new Set(Object.values(board.obj))];
+    const types = [...new Set([...Object.values(board.obj), ...(board.multi || []).map((g) => g.t)])];
     types.sort((a, b) => (OCC_FURN.has(a) === OCC_FURN.has(b) ? 0 : OCC_FURN.has(a) ? -1 : 1));
     legend.innerHTML = "";
     legend.append(el(`<span class="lg-title">Objetos</span>`));
@@ -515,18 +558,23 @@ function buildAuthBoard(c, board) {
     legend.append(el(`<span class="lg-item occ"><i>·</i>Chão livre<b>ocupável</b></span>`));
   }
 
+  function shake(cell) {
+    cell.animate([{ transform: "translateX(-3px)" }, { transform: "translateX(3px)" }, { transform: "translateX(0)" }], 150);
+  }
+
   stage.addEventListener("click", (e) => {
     const cell = e.target.closest(".acell"); if (!cell) return;
     const key = cell.dataset.key;
-    checkMap = null;
+    if (checkMap) { checkMap = null; }
+    verdict.textContent = ""; verdict.className = "verdict";
     const m = tool.mode;
 
     if (m === "erase") { delete st.cells[key]; commit(); return; }
 
     if (m === "x") {
       const cur = st.cells[key];
+      if (cur && (cur.kind === "place" || cur.kind === "guess" || cur.kind === "victim")) { shake(cell); return; }
       if (cur?.kind === "x" && !cur.auto) delete st.cells[key];
-      else if (cur?.kind === "place" || cur?.kind === "guess" || cur?.kind === "victim") { shake(cell); return; }
       else st.cells[key] = { kind: "x", auto: false };
       commit(); return;
     }
@@ -541,36 +589,50 @@ function buildAuthBoard(c, board) {
 
     // place | guess
     if (isBlocked(key)) { shake(cell); return; }
+    const isV = tool.who === "V";
     const ex = st.cells[key];
-    const same = ex && ex.kind === m && ex.who === tool.who;
+
+    if (m === "guess") {
+      if (isV) {
+        if (ex?.kind === "victim" && ex.guess) delete st.cells[key];
+        else st.cells[key] = { kind: "victim", guess: true };
+      } else {
+        if (ex?.kind === "guess" && ex.who === tool.who) delete st.cells[key];
+        else st.cells[key] = { kind: "guess", who: tool.who };
+      }
+      commit(); return;
+    }
+
+    // firm place: clears every firm+hypothesis of this identity, then toggles here
+    const wasHere = ex && ((isV && ex.kind === "victim" && !ex.guess) || (!isV && ex.kind === "place" && ex.who === tool.who));
     for (const k of Object.keys(st.cells)) {
       const v = st.cells[k];
-      if ((v?.kind === "place" || v?.kind === "guess") && v.who === tool.who) delete st.cells[k];
+      if (isV) { if (v?.kind === "victim") delete st.cells[k]; }
+      else if ((v?.kind === "place" || v?.kind === "guess") && v.who === tool.who) delete st.cells[k];
     }
-    if (!same) st.cells[key] = { kind: m, who: tool.who };
+    if (!wasHere) st.cells[key] = isV ? { kind: "victim" } : { kind: "place", who: tool.who };
     commit();
   });
-
-  function shake(cell) {
-    cell.animate([{ transform: "translateX(-3px)" }, { transform: "translateX(3px)" }, { transform: "translateX(0)" }], 150);
-  }
 
   picker.addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     if (tool.mode !== "place" && tool.mode !== "guess") tool.mode = "place";
-    tool.who = +b.dataset.i;
+    tool.who = b.dataset.i === "V" ? "V" : +b.dataset.i;
     selectionUI();
   });
 
-  tools.addEventListener("click", (e) => {
+  tools.addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.mode) { tool.mode = b.dataset.mode; selectionUI(); return; }
     const act = b.dataset.act;
+
     if (act === "clear") {
-      if (confirm("Limpar o tabuleiro deste caso?")) { st.cells = {}; checkMap = null; save(); draw(); }
+      if (confirm("Limpar o tabuleiro deste caso?")) { st.cells = {}; checkMap = null; verdict.textContent = ""; save(); draw(); }
       return;
     }
+
     if (act === "reveal") {
+      if (!(await askPassword(c))) { verdict.className = "verdict wrong"; verdict.textContent = "Palavra-passe errada — solução não revelada."; return; }
       st.cells = {};
       for (const [name, pos] of Object.entries(board.solution)) {
         if (name === "__VICTIM__") st.cells[pos] = { kind: "victim" };
@@ -582,28 +644,29 @@ function buildAuthBoard(c, board) {
       LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
       return;
     }
+
     if (act === "check") {
-      checkMap = {};
-      let ok = 0;
-      const total = suspects.length;
+      const firmCell = (pred) => Object.keys(st.cells).find((k) => pred(st.cells[k]));
+      const map = {};
+      let allOk = true;
       for (const s of suspects) {
-        const k = Object.keys(st.cells).find((k) => {
-          const v = st.cells[k];
-          return (v?.kind === "place" || v?.kind === "guess") && v.who === s.i;
-        });
-        if (!k) continue;
-        if (board.solution[s.n] === k) { checkMap[k] = "ok"; ok++; }
-        else checkMap[k] = "bad";
+        const k = firmCell((v) => v?.kind === "place" && v.who === s.i);
+        if (k && board.solution[s.n] === k) map[k] = "ok";
+        else allOk = false;
       }
-      draw();
-      if (ok === total) {
-        const vp = board.solution.__VICTIM__.split(",");
+      const vk = firmCell((v) => v?.kind === "victim" && !v.guess);
+      if (vk && board.solution.__VICTIM__ === vk) map[vk] = "ok";
+      else allOk = false;
+
+      if (allOk) {
+        checkMap = map; draw();
         verdict.className = "verdict right";
-        verdict.textContent = `✓ Todos certos! A vítima estava em L${vp[0]}C${vp[1]} — ${c.killer} é o assassino.`;
+        verdict.textContent = `✓ Tudo certo, vítima incluída. ${c.killer} é o assassino!`;
         LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
       } else {
-        verdict.className = "verdict";
-        verdict.textContent = `${ok}/${total} suspeitos na posição correta.`;
+        checkMap = null; draw();
+        verdict.className = "verdict wrong";
+        verdict.textContent = "Ainda há erros ou posições em falta (a vítima também conta). Continua.";
       }
       return;
     }

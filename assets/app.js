@@ -529,15 +529,20 @@ function buildAuthBoard(c, board) {
     board.rooms.forEach((rm) => {
       const rs = rm.cells.map((k) => k.split(",").map(Number));
       const rowNums = [...new Set(rs.map((p) => p[0]))].sort((a, b) => b - a); // bottom-up
+      const hasObj = (k) => !!board.obj[k] || multiOf.has(k);
       let x = null, y = null;
-      for (const row of rowNums) {
-        const colsInRow = rs.filter((p) => p[0] === row).map((p) => p[1]).sort((a, b) => a - b);
-        const centerC = (colsInRow[0] + colsInRow[colsInRow.length - 1]) / 2;
-        const ordered = [...colsInRow].sort((a, b) => Math.abs(a - centerC) - Math.abs(b - centerC));
-        const col = ordered.find((cn) => !winTouch.has(row + "," + cn));
-        if (col != null) { x = (col - 0.5) / cols * 100; y = row / rows * 100; break; }
+      // 1st pass: no window AND no object; 2nd pass: just no window
+      for (const strict of [true, false]) {
+        for (const row of rowNums) {
+          const colsInRow = rs.filter((p) => p[0] === row).map((p) => p[1]).sort((a, b) => a - b);
+          const centerC = (colsInRow[0] + colsInRow[colsInRow.length - 1]) / 2;
+          const ordered = [...colsInRow].sort((a, b) => Math.abs(a - centerC) - Math.abs(b - centerC));
+          const col = ordered.find((cn) => !winTouch.has(row + "," + cn) && (!strict || !hasObj(row + "," + cn)));
+          if (col != null) { x = (col - 0.5) / cols * 100; y = row / rows * 100; break; }
+        }
+        if (x != null) break;
       }
-      if (x == null) { // every candidate touches a window — fall back to plain centroid bottom
+      if (x == null) { // everything touches a window — fall back to plain centroid bottom
         const maxR = Math.max(...rs.map((p) => p[0]));
         x = (rs.reduce((s, p) => s + p[1], 0) / rs.length - 0.5) / cols * 100;
         y = maxR / rows * 100;

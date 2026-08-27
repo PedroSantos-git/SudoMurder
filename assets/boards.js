@@ -70,4 +70,30 @@ export const BOARDS = {
       "Douglas": "3,5", "Ella": "6,6", "__VICTIM__": "4,4",
     },
   },
+
+  // ---- Caso 2 · Alojamento de férias ----
+  2: {
+    rows: 6, cols: 6,
+    rooms: [
+      { name: "Quarto Principal", cells: rect(1, 1, 4, 2) },
+      { name: "Casa de Banho", cells: rect(1, 3, 4, 4) },
+      { name: "Quarto de Hóspedes", cells: rect(1, 5, 4, 6) },
+      { name: "Sala de Estar", cells: rect(5, 1, 6, 6) },
+    ],
+    obj: {
+      "2,1": "chair",
+      "1,3": "tv",
+      "1,5": "tv", "2,6": "plant",
+      "5,1": "plant", "6,1": "tv", "6,3": "tv",
+    },
+    multi: [
+      { t: "bed", cells: ["3,1", "3,2"] },
+      { t: "bed", cells: ["3,5", "3,6"] },
+    ],
+    windows: [],
+    solution: {
+      "Arianna": "6,2", "Brycen": "2,1", "Colleen": "1,4",
+      "Dan": "3,6", "Evan": "4,5", "__VICTIM__": "5,3",
+    },
+  },
 };

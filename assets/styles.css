@@ -193,6 +193,7 @@ header.top {
 .tool-btn.sel { background: var(--accent); color: #fff; }
 .tool-btn.sel.x { background: var(--line-2); color: #fff; }
 .tool-btn.sel.note { background: var(--blue); color: #06121f; }
+.tool-btn.sel.guess { background: #6b7280; color: #fff; }
 .mini { padding: 7px 11px; border-radius: 8px; font-size: 12px; font-weight: 700; border: 1px solid var(--line); color: var(--text-dim); }
 .mini:hover { color: var(--text); border-color: var(--line-2); }
 
@@ -266,9 +267,17 @@ footer a { color: var(--text-dim); }
 .scan-link { float: right; font-size: 11px; font-weight: 700; color: var(--blue); text-transform: none; letter-spacing: 0; }
 .scan-link:hover { color: var(--accent-2); }
 .aboard-stage { display: flex; justify-content: center; margin: 6px 0 4px; }
+.aboard-wrap { position: relative; width: min(600px, 100%); }
 .aboard {
-  display: grid; width: min(560px, 100%); border: 3px solid #0b0c10; border-radius: 6px;
+  display: grid; width: 100%; border: 3px solid #0b0c10; border-radius: 6px;
   background: #0b0c10; overflow: hidden; user-select: none;
+}
+.room-labels { position: absolute; inset: 0; pointer-events: none; }
+.rlabel {
+  position: absolute; transform: translate(-50%, -50%);
+  background: #f2f0ea; color: #23252d; font-size: 10px; font-weight: 800;
+  letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; white-space: nowrap;
+  border: 1.5px solid #23252d; box-shadow: 0 1px 4px rgba(0,0,0,.4); opacity: .94;
 }
 .acell {
   position: relative; aspect-ratio: 1/1; box-sizing: border-box;
@@ -286,7 +295,7 @@ footer a { color: var(--text-dim); }
   border: 1px solid rgba(255,255,255,.22);
 }
 .acell.has-bed { background-image: linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)); }
-.oicon { font-size: clamp(14px, 3.4vw, 22px); line-height: 1; filter: saturate(.85); opacity: .92; pointer-events: none; }
+.oicon { font-size: clamp(20px, 5.2vw, 36px); line-height: 1; filter: saturate(.9); opacity: .96; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
 .win { position: absolute; background: #7fd4ff; box-shadow: 0 0 8px #7fd4ff; border-radius: 2px; pointer-events: none; }
 .win-N { top: -3px; left: 18%; right: 18%; height: 5px; }
 .win-S { bottom: -3px; left: 18%; right: 18%; height: 5px; }
@@ -300,10 +309,25 @@ footer a { color: var(--text-dim); }
   pointer-events: none;
 }
 .tok-badge.victim { background: rgba(229,52,46,.9); box-shadow: 0 2px 10px rgba(229,52,46,.6), inset 0 0 0 2px #fff; }
-.cell-x { color: rgba(255,255,255,.32); font-size: 18px; pointer-events: none; }
-.cell-note { font-size: 9px; font-weight: 700; color: var(--blue); text-align: center; line-height: 1.05; padding: 1px; pointer-events: none; }
+.tok-badge.guess { background: #565c6b; color: #e9ecf1; box-shadow: 0 2px 8px rgba(0,0,0,.5), inset 0 0 0 2px var(--tc); opacity: .96; }
+.cell-x { color: rgba(255,255,255,.5); font-size: 20px; font-weight: 700; pointer-events: none; }
+.cell-x.auto { color: rgba(255,255,255,.16); }
+.cell-note { font-size: 10px; font-weight: 700; color: var(--blue); text-align: center; line-height: 1.05; padding: 1px; pointer-events: none; }
 .acell.chk-ok { outline: 3px solid var(--green); outline-offset: -3px; }
 .acell.chk-bad { outline: 3px solid var(--accent); outline-offset: -3px; }
+
+/* board legend */
+.board-legend { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 12px 0 4px; align-items: center; }
+.lg-title { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-mute); font-weight: 700; margin-right: 2px; }
+.lg-item {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim);
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px 3px 6px;
+}
+.lg-item i { font-size: 14px; font-style: normal; width: 16px; text-align: center; }
+.lg-item b { font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: .8; }
+.lg-item.occ b { color: var(--green); }
+.lg-item.blk b { color: var(--accent-2); }
+.lg-item .lg-win { display: inline-block; width: 12px; height: 4px; border-radius: 2px; background: #7fd4ff; box-shadow: 0 0 6px #7fd4ff; }
 
 /* ===== Lightbox ===== */
 .lightbox {

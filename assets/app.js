@@ -346,6 +346,16 @@ function openScan(name, title) {
 
 /* ============================ AUTHENTIC BOARD ============================ */
 const ROOM_HUES = [200, 265, 340, 150, 35, 55, 300, 175, 240, 15];
+const OCC_FURN = new Set(["bed", "chair", "rug", "towel", "car", "horse", "mud", "stool", "sofa"]);
+const OBJ_LABEL = {
+  tv: "Televisão", plant: "Planta", table: "Mesa", shelf: "Estante", box: "Caixa",
+  bed: "Cama", chair: "Cadeira", rug: "Tapete", statue: "Estátua", present: "Presente",
+  car: "Carro", horse: "Cavalo", cow: "Vaca", pig: "Porco", lion: "Leão", tree: "Árvore",
+  trashcan: "Caixote do lixo", barrel: "Barril", cashreg: "Caixa registadora",
+  register: "Caixa registadora", vase: "Vaso", punchbag: "Saco de boxe", locker: "Cacifo",
+  boulder: "Pedregulho", rubble: "Entulho", weaponrack: "Suporte de armas",
+  easel: "Cavalete", catapult: "Catapulta", towel: "Toalha", mud: "Lama", sofa: "Sofá", stool: "Banco",
+};
 
 function buildAuthBoard(c, board) {
   const { rows, cols } = board;
@@ -358,6 +368,7 @@ function buildAuthBoard(c, board) {
   let tool = { mode: "place", who: 0 };
   let checkMap = null; // key -> "ok" | "bad"
   const save = () => LS.set(gridKey(c.id), st);
+  const isBlocked = (key) => NONOCC.has(board.obj[key]);
 
   const root = el(`<div></div>`);
 
@@ -367,8 +378,9 @@ function buildAuthBoard(c, board) {
   const tools = el(`
     <div class="grid-tools">
       <div class="group">
-        <button class="tool-btn" data-mode="place">Colocar</button>
-        <button class="tool-btn" data-mode="x">✕</button>
+        <button class="tool-btn" data-mode="place" title="Marca a posição definitiva e risca linha+coluna">Colocar</button>
+        <button class="tool-btn" data-mode="guess" title="Hipótese (cinzento) — não risca nada">Hipótese</button>
+        <button class="tool-btn" data-mode="x" title="Riscar célula à mão">✕</button>
         <button class="tool-btn" data-mode="note">Nota</button>
         <button class="tool-btn" data-mode="erase">Apagar</button>
       </div>
@@ -380,16 +392,19 @@ function buildAuthBoard(c, board) {
 
   const stage = el(`<div class="aboard-stage"></div>`);
   const verdict = el(`<div class="verdict"></div>`);
-  const hint = el(`<div class="grid-hint">Só é possível colocar pessoas em células livres (não em mesas, TVs, plantas, estantes…). A vítima vai para a última célula livre.</div>`);
-  root.append(picker, tools, stage, verdict, hint);
+  const legend = el(`<div class="board-legend"></div>`);
+  const hint = el(`<div class="grid-hint"><b>Colocar</b> = posição definitiva (risca a linha e a coluna). <b>Hipótese</b> = palpite a cinzento. Só entram pessoas em células livres.</div>`);
+  root.append(picker, tools, stage, verdict, legend, hint);
 
   function selectionUI() {
-    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", tool.mode === "place" && +b.dataset.i === tool.who));
+    const needsWho = tool.mode === "place" || tool.mode === "guess";
+    picker.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", needsWho && +b.dataset.i === tool.who));
     tools.querySelectorAll(".tool-btn").forEach((b) => {
       const on = b.dataset.mode === tool.mode;
       b.classList.toggle("sel", on);
       b.classList.toggle("x", on && tool.mode === "x");
       b.classList.toggle("note", on && tool.mode === "note");
+      b.classList.toggle("guess", on && tool.mode === "guess");
     });
   }
 
@@ -400,8 +415,30 @@ function buildAuthBoard(c, board) {
     return roomOf[nr + "," + nc] !== roomOf[r + "," + cc];
   }
 
+  // rebuild every automatic ✕ from the current firm placements
+  function recomputeAutoX() {
+    for (const k of Object.keys(st.cells)) {
+      if (st.cells[k]?.kind === "x" && st.cells[k].auto) delete st.cells[k];
+    }
+    for (const [k, v] of Object.entries(st.cells)) {
+      if (v?.kind !== "place") continue;
+      const [r, cc] = k.split(",").map(Number);
+      const mark = (rr, ccc) => {
+        const kk = rr + "," + ccc;
+        if (kk === k) return;
+        if (isBlocked(kk)) return;
+        if (!st.cells[kk]) st.cells[kk] = { kind: "x", auto: true };
+      };
+      for (let i = 1; i <= cols; i++) mark(r, i);
+      for (let i = 1; i <= rows; i++) mark(i, cc);
+    }
+  }
+
+  function commit() { recomputeAutoX(); save(); draw(); }
+
   function draw() {
-    const grid = el(`<div class="aboard" style="grid-template-columns:repeat(${cols},1fr);aspect-ratio:${cols}/${rows}"></div>`);
+    const wrap = el(`<div class="aboard-wrap"></div>`);
+    const grid = el(`<div class="aboard" style="grid-template-columns:repeat(${cols},1fr)"></div>`);
     for (let r = 1; r <= rows; r++) {
       for (let cc = 1; cc <= cols; cc++) {
         const key = r + "," + cc;
@@ -413,72 +450,121 @@ function buildAuthBoard(c, board) {
         if (o) {
           if (o === "rug") cell.classList.add("has-rug");
           else if (o === "bed") { cell.classList.add("has-bed"); cell.append(el(`<span class="oicon">${ICON.bed}</span>`)); }
-          else { cell.append(el(`<span class="oicon">${ICON[o] || "▪"}</span>`)); }
+          else cell.append(el(`<span class="oicon">${ICON[o] || "▪"}</span>`));
           if (NONOCC.has(o)) cell.classList.add("blk");
         }
-        // windows
         board.windows.forEach((w) => {
           const [wr, wc, ws] = w.split(",");
           if (+wr === r && +wc === cc) cell.append(el(`<span class="win win-${ws}"></span>`));
         });
         const cs = st.cells[key];
         if (cs) {
-          if (cs.kind === "place") {
+          if (cs.kind === "place" || cs.kind === "guess") {
             const s = suspects[cs.who];
-            if (s) cell.append(el(`<span class="tok-badge" style="--tc:${s.color}">${esc(s.ini)}</span>`));
+            if (s) cell.append(el(`<span class="tok-badge ${cs.kind === "guess" ? "guess" : ""}" style="--tc:${s.color}">${esc(s.ini)}</span>`));
           } else if (cs.kind === "victim") {
             cell.append(el(`<span class="tok-badge victim">${esc(initials(c.victim))}</span>`));
-          } else if (cs.kind === "x") cell.append(el(`<span class="cell-x">✕</span>`));
+          } else if (cs.kind === "x") cell.append(el(`<span class="cell-x ${cs.auto ? "auto" : ""}">✕</span>`));
           else if (cs.kind === "note") cell.append(el(`<span class="cell-note">${esc(cs.text)}</span>`));
         }
         if (checkMap && checkMap[key]) cell.classList.add("chk-" + checkMap[key]);
         grid.append(cell);
       }
     }
+    wrap.append(grid);
+    // room name labels
+    const labels = el(`<div class="room-labels"></div>`);
+    board.rooms.forEach((rm) => {
+      let sr = 0, sc = 0;
+      rm.cells.forEach((k) => { const [r, cc] = k.split(",").map(Number); sr += r; sc += cc; });
+      const cr = sr / rm.cells.length, cc = sc / rm.cells.length;
+      const lab = el(`<span class="rlabel">${esc(rm.name)}</span>`);
+      lab.style.left = ((cc - 0.5) / cols * 100) + "%";
+      lab.style.top = ((cr - 0.5) / rows * 100) + "%";
+      labels.append(lab);
+    });
+    wrap.append(labels);
     stage.innerHTML = "";
-    stage.append(grid);
+    stage.append(wrap);
+    drawLegend();
+  }
+
+  function drawLegend() {
+    const types = [...new Set(Object.values(board.obj))];
+    types.sort((a, b) => (OCC_FURN.has(a) === OCC_FURN.has(b) ? 0 : OCC_FURN.has(a) ? -1 : 1));
+    legend.innerHTML = "";
+    legend.append(el(`<span class="lg-title">Objetos</span>`));
+    types.forEach((t) => {
+      const occ = OCC_FURN.has(t);
+      const ic = t === "rug" ? "▦" : (ICON[t] || "▪");
+      legend.append(el(`<span class="lg-item ${occ ? "occ" : "blk"}"><i>${ic}</i>${esc(OBJ_LABEL[t] || t)}<b>${occ ? "ocupável" : "bloqueado"}</b></span>`));
+    });
+    if (board.windows.length) legend.append(el(`<span class="lg-item occ"><i class="lg-win"></i>Janela<b>na borda</b></span>`));
+    legend.append(el(`<span class="lg-item occ"><i>·</i>Chão livre<b>ocupável</b></span>`));
   }
 
   stage.addEventListener("click", (e) => {
     const cell = e.target.closest(".acell"); if (!cell) return;
     const key = cell.dataset.key;
     checkMap = null;
-    if (tool.mode === "erase") delete st.cells[key];
-    else if (tool.mode === "x") {
-      if (st.cells[key]?.kind === "x") delete st.cells[key]; else st.cells[key] = { kind: "x" };
-    } else if (tool.mode === "note") {
+    const m = tool.mode;
+
+    if (m === "erase") { delete st.cells[key]; commit(); return; }
+
+    if (m === "x") {
+      const cur = st.cells[key];
+      if (cur?.kind === "x" && !cur.auto) delete st.cells[key];
+      else if (cur?.kind === "place" || cur?.kind === "guess" || cur?.kind === "victim") { shake(cell); return; }
+      else st.cells[key] = { kind: "x", auto: false };
+      commit(); return;
+    }
+
+    if (m === "note") {
       const cur = st.cells[key]?.kind === "note" ? st.cells[key].text : "";
       const t = prompt("Nota:", cur || ""); if (t === null) return;
-      if (!t.trim()) delete st.cells[key]; else st.cells[key] = { kind: "note", text: t.trim().slice(0, 12) };
-    } else {
-      if (cell.classList.contains("blk")) { cell.animate([{ transform: "translateX(-2px)" }, { transform: "translateX(2px)" }, { transform: "translateX(0)" }], 150); return; }
-      const ex = st.cells[key];
-      if (ex?.kind === "place" && ex.who === tool.who) delete st.cells[key];
-      else {
-        for (const k of Object.keys(st.cells)) if (st.cells[k]?.kind === "place" && st.cells[k].who === tool.who) delete st.cells[k];
-        st.cells[key] = { kind: "place", who: tool.who };
-      }
+      if (!t.trim()) { if (st.cells[key]?.kind === "note") delete st.cells[key]; }
+      else st.cells[key] = { kind: "note", text: t.trim().slice(0, 12) };
+      commit(); return;
     }
-    save(); draw();
+
+    // place | guess
+    if (isBlocked(key)) { shake(cell); return; }
+    const ex = st.cells[key];
+    const same = ex && ex.kind === m && ex.who === tool.who;
+    for (const k of Object.keys(st.cells)) {
+      const v = st.cells[k];
+      if ((v?.kind === "place" || v?.kind === "guess") && v.who === tool.who) delete st.cells[k];
+    }
+    if (!same) st.cells[key] = { kind: m, who: tool.who };
+    commit();
   });
+
+  function shake(cell) {
+    cell.animate([{ transform: "translateX(-3px)" }, { transform: "translateX(3px)" }, { transform: "translateX(0)" }], 150);
+  }
 
   picker.addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
-    tool = { mode: "place", who: +b.dataset.i }; selectionUI();
+    if (tool.mode !== "place" && tool.mode !== "guess") tool.mode = "place";
+    tool.who = +b.dataset.i;
+    selectionUI();
   });
 
   tools.addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.mode) { tool.mode = b.dataset.mode; selectionUI(); return; }
     const act = b.dataset.act;
-    if (act === "clear") { if (confirm("Limpar o tabuleiro deste caso?")) { st.cells = {}; checkMap = null; save(); draw(); } return; }
+    if (act === "clear") {
+      if (confirm("Limpar o tabuleiro deste caso?")) { st.cells = {}; checkMap = null; save(); draw(); }
+      return;
+    }
     if (act === "reveal") {
       st.cells = {};
       for (const [name, pos] of Object.entries(board.solution)) {
         if (name === "__VICTIM__") st.cells[pos] = { kind: "victim" };
         else { const idx = suspects.findIndex((s) => s.n === name); if (idx >= 0) st.cells[pos] = { kind: "place", who: idx }; }
       }
-      checkMap = null; save(); draw();
+      checkMap = null; recomputeAutoX(); save(); draw();
       verdict.className = "verdict right";
       verdict.textContent = `A vítima (${c.victim}) ficou sozinha com ${c.killer}. ${c.killer} é o assassino.`;
       LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
@@ -486,18 +572,22 @@ function buildAuthBoard(c, board) {
     }
     if (act === "check") {
       checkMap = {};
-      let ok = 0, total = suspects.length;
+      let ok = 0;
+      const total = suspects.length;
       for (const s of suspects) {
-        const placedKey = Object.keys(st.cells).find((k) => st.cells[k]?.kind === "place" && st.cells[k].who === s.i);
-        if (!placedKey) continue;
-        if (board.solution[s.n] === placedKey) { checkMap[placedKey] = "ok"; ok++; }
-        else checkMap[placedKey] = "bad";
+        const k = Object.keys(st.cells).find((k) => {
+          const v = st.cells[k];
+          return (v?.kind === "place" || v?.kind === "guess") && v.who === s.i;
+        });
+        if (!k) continue;
+        if (board.solution[s.n] === k) { checkMap[k] = "ok"; ok++; }
+        else checkMap[k] = "bad";
       }
       draw();
       if (ok === total) {
-        const vpos = board.solution.__VICTIM__;
+        const vp = board.solution.__VICTIM__.split(",");
         verdict.className = "verdict right";
-        verdict.textContent = `✓ Todos certos! A vítima estava em L${vpos.split(",")[0]}C${vpos.split(",")[1]} — ${c.killer} é o assassino.`;
+        verdict.textContent = `✓ Todos certos! A vítima estava em L${vp[0]}C${vp[1]} — ${c.killer} é o assassino.`;
         LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
       } else {
         verdict.className = "verdict";
@@ -508,6 +598,7 @@ function buildAuthBoard(c, board) {
   });
 
   selectionUI();
+  recomputeAutoX();
   draw();
   return root;
 }

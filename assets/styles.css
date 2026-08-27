@@ -272,12 +272,12 @@ footer a { color: var(--text-dim); }
   display: grid; width: 100%; border: 3px solid #0b0c10; border-radius: 6px;
   background: #0b0c10; overflow: hidden; user-select: none;
 }
-.room-labels { position: absolute; inset: 0; pointer-events: none; }
+.room-labels { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
 .rlabel {
   position: absolute; transform: translate(-50%, -50%);
-  background: #f2f0ea; color: #23252d; font-size: 10px; font-weight: 800;
+  background: #f4f2ec; color: #20222a; font-size: clamp(8px, 1.5vw, 10px); font-weight: 800;
   letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; white-space: nowrap;
-  border: 1.5px solid #23252d; box-shadow: 0 1px 4px rgba(0,0,0,.4); opacity: .94;
+  border: 1.5px solid #20222a; box-shadow: 0 1px 5px rgba(0,0,0,.55); opacity: .96;
 }
 .acell {
   position: relative; aspect-ratio: 1/1; box-sizing: border-box;

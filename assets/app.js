@@ -472,15 +472,27 @@ function buildAuthBoard(c, board) {
       }
     }
     wrap.append(grid);
-    // room name labels
+    // room name labels — placed on an object-free cell of the room (fallback: bottom wall)
     const labels = el(`<div class="room-labels"></div>`);
     board.rooms.forEach((rm) => {
-      let sr = 0, sc = 0;
-      rm.cells.forEach((k) => { const [r, cc] = k.split(",").map(Number); sr += r; sc += cc; });
-      const cr = sr / rm.cells.length, cc = sc / rm.cells.length;
+      const rs = rm.cells.map((k) => k.split(",").map(Number));
+      const cr = rs.reduce((s, p) => s + p[0], 0) / rs.length;
+      const cc = rs.reduce((s, p) => s + p[1], 0) / rs.length;
+      const free = rs.filter(([r, c]) => !board.obj[r + "," + c] && st.cells[r + "," + c]?.kind !== "place" && st.cells[r + "," + c]?.kind !== "guess" && st.cells[r + "," + c]?.kind !== "victim");
+      let x, y;
+      if (free.length) {
+        free.sort((a, b) => Math.hypot(a[0] - cr, a[1] - cc) - Math.hypot(b[0] - cr, b[1] - cc));
+        x = (free[0][1] - 0.5) / cols * 100;
+        y = (free[0][0] - 0.5) / rows * 100;
+      } else {
+        const maxR = Math.max(...rs.map((p) => p[0]));
+        const bc = rs.filter((p) => p[0] === maxR).map((p) => p[1]);
+        x = ((Math.min(...bc) - 1 + Math.max(...bc)) / 2) / cols * 100;
+        y = (maxR === rows ? maxR - 0.2 : maxR) / rows * 100;
+      }
       const lab = el(`<span class="rlabel">${esc(rm.name)}</span>`);
-      lab.style.left = ((cc - 0.5) / cols * 100) + "%";
-      lab.style.top = ((cr - 0.5) / rows * 100) + "%";
+      lab.style.left = x + "%";
+      lab.style.top = y + "%";
       labels.append(lab);
     });
     wrap.append(labels);

@@ -96,4 +96,79 @@ export const BOARDS = {
       "Dan": "3,6", "Evan": "4,5", "__VICTIM__": "5,3",
     },
   },
+
+  // ---- Caso 3 · O pequeno-almoço inglês ----
+  3: {
+    rows: 6, cols: 6,
+    rooms: [
+      { name: "Quarto de Hóspedes", cells: ["1,1", "2,1", "3,1", "4,1", "5,1", "6,1", "4,2", "5,2", "6,2"] },
+      { name: "Casa de Banho", cells: ["1,2", "2,2", "3,2", "1,3", "2,3", "1,4", "2,4"] },
+      { name: "Quarto Principal", cells: ["3,3", "4,3", "3,4", "4,4"] },
+      { name: "Cozinha", cells: ["1,5", "2,5", "3,5", "4,5", "1,6", "2,6", "3,6", "4,6"] },
+      { name: "Sala de Estar", cells: ["5,3", "5,4", "6,3", "6,4", "5,5", "6,5", "5,6", "6,6"] },
+    ],
+    obj: {
+      "1,1": "bed",
+      "2,3": "chair",
+      "3,4": "table",
+      "1,5": "table", "1,6": "table",
+      "3,5": "plant", "4,5": "plant",
+      "5,3": "chair", "6,3": "tv",
+    },
+    multi: [{ t: "bed", cells: ["4,3", "4,4"] }],
+    windows: ["4,6,E"],
+    solution: {
+      "Alexander": "1,1", "Briggs": "2,5", "Carissa": "3,3",
+      "Diana": "6,4", "Elsa": "4,6", "__VICTIM__": "5,2",
+    },
+  },
+
+  // ---- Caso 4 · Quatro janelas ----
+  4: {
+    rows: 6, cols: 6,
+    rooms: [
+      { name: "Sala de Estar", cells: rect(1, 1, 3, 3) },
+      { name: "Quarto Principal", cells: rect(1, 4, 3, 6) },
+      { name: "Casa de Banho", cells: rect(4, 1, 6, 3) },
+      { name: "Quarto de Hóspedes", cells: rect(4, 4, 6, 6) },
+    ],
+    obj: {
+      "2,1": "chair", "2,2": "tv", "3,3": "tv",
+      "2,6": "chair",
+      "6,3": "tv",
+      "4,5": "plant", "5,5": "plant", "5,6": "chair",
+    },
+    multi: [
+      { t: "bed", cells: ["2,4", "2,5"] },
+      { t: "table", cells: ["5,1", "5,2"] },
+    ],
+    windows: ["1,1,W", "6,1,W", "1,6,E", "6,6,E"],
+    solution: {
+      "Antonio": "1,3", "Ben": "5,6", "Chelsea": "6,1",
+      "Dahlia": "2,5", "Emmy": "4,4", "__VICTIM__": "3,2",
+    },
+  },
+
+  // ---- Caso 5 · Sessão de estudo ----
+  5: {
+    rows: 6, cols: 6,
+    rooms: [
+      { name: "Sala de Estar", cells: rect(1, 1, 6, 2) },
+      { name: "Escritório", cells: rect(1, 3, 3, 4) },
+      { name: "Casa de Banho", cells: rect(4, 3, 6, 4) },
+      { name: "Quarto Principal", cells: rect(1, 5, 6, 6) },
+    ],
+    obj: {
+      "1,1": "chair", "3,1": "chair", "5,1": "tv",
+      "2,3": "chair", "3,3": "plant",
+      "5,3": "table", "5,4": "chair", "6,3": "plant",
+      "3,6": "table", "6,6": "table",
+    },
+    multi: [{ t: "bed", cells: ["4,5", "4,6"] }],
+    windows: ["1,1,N", "1,6,N", "4,1,W"],
+    solution: {
+      "Aaron": "4,5", "Bruno": "2,3", "Clara": "1,6",
+      "Donna": "6,4", "Evelyn": "5,2", "__VICTIM__": "3,1",
+    },
+  },
 };

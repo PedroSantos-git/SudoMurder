@@ -20,6 +20,7 @@ export const NONOCC = new Set([
   "tv", "plant", "table", "shelf", "box", "statue", "present", "easel", "catapult",
   "weaponrack", "vase", "locker", "punchbag", "boulder", "rubble", "tree",
   "trashcan", "barrel", "lion", "cow", "pig", "gaspump", "register", "cashreg",
+  "bath", "sink", "toilet", "counter",
 ]);
 
 export const ICON = {
@@ -29,6 +30,7 @@ export const ICON = {
   cashreg: "🧾", register: "🧾", vase: "🏺", punchbag: "🥊", locker: "🔒",
   boulder: "🪨", rubble: "🧱", weaponrack: "⚔️", easel: "🖼️", catapult: "🎯",
   towel: "🧣", mud: "🟤", sofa: "🛋️", stool: "🪑",
+  bath: "🛁", sink: "🚰", toilet: "🚽", counter: "🍳",
 };
 
 export const BOARDS = {
@@ -101,21 +103,25 @@ export const BOARDS = {
   3: {
     rows: 6, cols: 6,
     rooms: [
-      { name: "Quarto de Hóspedes", cells: ["1,1", "2,1", "3,1", "4,1", "5,1", "6,1", "4,2", "5,2", "6,2"] },
-      { name: "Casa de Banho", cells: ["1,2", "2,2", "3,2", "1,3", "2,3", "1,4", "2,4"] },
-      { name: "Quarto Principal", cells: ["3,3", "4,3", "3,4", "4,4"] },
-      { name: "Cozinha", cells: ["1,5", "2,5", "3,5", "4,5", "1,6", "2,6", "3,6", "4,6"] },
-      { name: "Sala de Estar", cells: ["5,3", "5,4", "6,3", "6,4", "5,5", "6,5", "5,6", "6,6"] },
+      { name: "Quarto de Hóspedes", cells: ["1,1", "2,1", "3,1", "4,1", "5,1", "6,1", "5,2", "6,2"] },
+      { name: "Casa de Banho", cells: ["1,2", "1,3", "1,4", "2,2", "2,3", "2,4"] },
+      { name: "Quarto Principal", cells: ["3,2", "3,3", "3,4", "4,2", "4,3", "4,4"] },
+      { name: "Cozinha", cells: ["1,5", "1,6", "2,5", "2,6", "3,5", "3,6"] },
+      { name: "Sala de Estar", cells: ["4,5", "4,6", "5,3", "5,4", "5,5", "5,6", "6,3", "6,4", "6,5", "6,6"] },
     ],
     obj: {
-      "1,1": "bed",
-      "2,3": "chair",
-      "3,4": "table",
-      "1,5": "table", "1,6": "table",
-      "3,5": "plant", "4,5": "plant",
+      "2,4": "chair",
+      "3,4": "table", "4,4": "rug",
+      "3,5": "plant",
+      "4,5": "plant",
       "5,3": "chair", "6,3": "tv",
     },
-    multi: [{ t: "bed", cells: ["4,3", "4,4"] }],
+    multi: [
+      { t: "bed", cells: ["1,1", "2,1"] },
+      { t: "bath", cells: ["3,1", "4,1"] },
+      { t: "bed", cells: ["4,2", "4,3"] },
+      { t: "counter", cells: ["1,5", "1,6"] },
+    ],
     windows: ["4,6,E"],
     solution: {
       "Alexander": "1,1", "Briggs": "2,5", "Carissa": "3,3",

@@ -410,6 +410,7 @@ const OBJ_LABEL = {
   register: "Caixa registadora", vase: "Vaso", punchbag: "Saco de boxe", locker: "Cacifo",
   boulder: "Pedregulho", rubble: "Entulho", weaponrack: "Suporte de armas",
   easel: "Cavalete", catapult: "Catapulta", towel: "Toalha", mud: "Lama", sofa: "Sofá", stool: "Banco",
+  bath: "Banheira", sink: "Lavatório", toilet: "Sanita", counter: "Bancada",
 };
 
 function buildAuthBoard(c, board) {

@@ -62,6 +62,7 @@ window.addEventListener("hashchange", router);
 
 /* ============================ shell ============================ */
 const app = $("#app");
+document.body.prepend(el(`<div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span><span></span></div>`));
 document.body.prepend(el(`
   <header class="top">
     <div class="wrap">
@@ -278,10 +279,9 @@ function passwordFor(c) {
 function askPassword(c) {
   return new Promise((resolve) => {
     const modal = el(`
-      <div class="lightbox">
-        <div class="pw-box">
+      <div class="pw-overlay">
+        <div class="pw-box glass">
           <div class="pw-title">Palavra-passe da solução</div>
-          <p class="pw-hint">Escreve a <b>2.ª letra do nome de cada suspeito</b>, pela ordem em que aparecem no caso (tudo junto, sem espaços).</p>
           <input type="password" autocomplete="off" placeholder="••••••">
           <div class="pw-err"></div>
           <div class="pw-actions"><button class="mini" data-a="cancel">Cancelar</button><button class="btn primary" data-a="ok">Confirmar</button></div>
@@ -310,10 +310,9 @@ function walkHtml(c) {
     : `<div class="walk" style="color:var(--text-mute);font-size:12px;margin-top:10px">Resolução passo-a-passo ainda não transcrita — consulta as páginas de solução do livro.</div>`;
 }
 
-/* ---------------- reveal panel (right column) ---------------- */
+/* ---------------- reveal panel (right column) — always password-gated ---------------- */
 function buildReveal(c) {
   const box = el(`<div class="panel" style="margin-top:16px"><h4>O assassino</h4></div>`);
-  const solved = LS.get(solvedKey(c.id), false);
   const holder = el(`<div></div>`);
   box.append(holder);
 
@@ -328,15 +327,11 @@ function buildReveal(c) {
     `));
   }
 
-  if (solved) {
-    showReveal();
-  } else {
-    const sp = el(`<div class="spoiler">Preferes desistir? <button>Revelar solução</button></div>`);
-    sp.querySelector("button").addEventListener("click", async () => {
-      if (await askPassword(c)) { LS.set(solvedKey(c.id), true); LS.set(guessKey(c.id), c.killer); showReveal(); }
-    });
-    holder.append(sp);
-  }
+  const sp = el(`<div class="spoiler">Preferes desistir? <button>Revelar solução</button></div>`);
+  sp.querySelector("button").addEventListener("click", async () => {
+    if (await askPassword(c)) { LS.set(guessKey(c.id), c.killer); showReveal(); }
+  });
+  holder.append(sp);
   return box;
 }
 
@@ -479,20 +474,17 @@ function buildAuthBoard(c, board) {
         const mg = multiOf.get(key);
         if (mg) {
           if (NONOCC.has(mg.t)) cell.classList.add("blk");
-          const inG = (rr, ccc) => mg.cells.includes(rr + "," + ccc);
-          const cls = ["mo-piece", "mo-" + mg.t];
-          if (inG(r - 1, cc)) cls.push("in-N");
-          if (inG(r + 1, cc)) cls.push("in-S");
-          if (inG(r, cc - 1)) cls.push("in-W");
-          if (inG(r, cc + 1)) cls.push("in-E");
-          if (mg.t === "bed") {
-            const vert = (mg.maxR - mg.minR) >= (mg.maxC - mg.minC);
-            if (vert && r === mg.minR) cls.push("head-N");
-            if (!vert && cc === mg.minC) cls.push("head-W");
+          if (mg.t === "bed") cell.classList.add("has-bed");
+          if (mg.t === "rug") cell.classList.add("has-rug");
+          if (r === mg.minR && cc === mg.minC) {
+            const w = mg.maxC - mg.minC + 1, h = mg.maxR - mg.minR + 1;
+            const vert = h >= w;
+            const mo = el(`<span class="multi-obj" style="width:${w * 100}%;height:${h * 100}%"></span>`);
+            if (mg.t === "bed") mo.append(el(`<span class="bed-shape ${vert ? "v" : "h"}"></span>`));
+            else if (mg.t === "rug") mo.append(el(`<span class="rug-shape"></span>`));
+            else mo.append(el(`<span class="oicon" style="font-size:clamp(24px,${(vert ? h : w) * 4}vw,44px)">${ICON[mg.t] || "▪"}</span>`));
+            cell.append(mo);
           }
-          const piece = el(`<span class="${cls.join(" ")}"></span>`);
-          if (mg.t !== "bed" && mg.t !== "rug" && r === mg.minR && cc === mg.minC) piece.append(el(`<span class="oicon">${ICON[mg.t] || "▪"}</span>`));
-          cell.append(piece);
         } else {
           const o = board.obj[key];
           if (o) {
@@ -524,14 +516,32 @@ function buildAuthBoard(c, board) {
     }
     wrap.append(grid);
 
-    // room labels: centred column, bottom of the room's lowest central cell
+    // room labels: bottom edge of a central cell of the room that has NO window nearby
+    const winTouch = new Set();
+    board.windows.forEach((win) => {
+      const [wr, wc, ws] = win.split(",");
+      const R = +wr, C = +wc;
+      winTouch.add(R + "," + C);
+      const nb = { N: [R - 1, C], S: [R + 1, C], E: [R, C + 1], W: [R, C - 1] }[ws];
+      if (nb) winTouch.add(nb[0] + "," + nb[1]);
+    });
     const labels = el(`<div class="room-labels"></div>`);
     board.rooms.forEach((rm) => {
       const rs = rm.cells.map((k) => k.split(",").map(Number));
-      const maxR = Math.max(...rs.map((p) => p[0]));
-      const bc = rs.filter((p) => p[0] === maxR).map((p) => p[1]);
-      const x = ((Math.min(...bc) - 1 + Math.max(...bc)) / 2) / cols * 100;
-      const y = maxR / rows * 100;
+      const rowNums = [...new Set(rs.map((p) => p[0]))].sort((a, b) => b - a); // bottom-up
+      let x = null, y = null;
+      for (const row of rowNums) {
+        const colsInRow = rs.filter((p) => p[0] === row).map((p) => p[1]).sort((a, b) => a - b);
+        const centerC = (colsInRow[0] + colsInRow[colsInRow.length - 1]) / 2;
+        const ordered = [...colsInRow].sort((a, b) => Math.abs(a - centerC) - Math.abs(b - centerC));
+        const col = ordered.find((cn) => !winTouch.has(row + "," + cn));
+        if (col != null) { x = (col - 0.5) / cols * 100; y = row / rows * 100; break; }
+      }
+      if (x == null) { // every candidate touches a window — fall back to plain centroid bottom
+        const maxR = Math.max(...rs.map((p) => p[0]));
+        x = (rs.reduce((s, p) => s + p[1], 0) / rs.length - 0.5) / cols * 100;
+        y = maxR / rows * 100;
+      }
       const lab = el(`<span class="rlabel">${esc(rm.name)}</span>`);
       lab.style.left = x + "%";
       lab.style.top = y + "%";
@@ -661,8 +671,8 @@ function buildAuthBoard(c, board) {
       if (allOk) {
         checkMap = map; draw();
         verdict.className = "verdict right";
-        verdict.textContent = `✓ Tudo certo, vítima incluída. ${c.killer} é o assassino!`;
-        LS.set(guessKey(c.id), c.killer); LS.set(solvedKey(c.id), true);
+        verdict.textContent = "✓ Tudo certo, vítima incluída! Vê quem ficou sozinho com a vítima na mesma divisão.";
+        LS.set(solvedKey(c.id), true);
       } else {
         checkMap = null; draw();
         verdict.className = "verdict wrong";

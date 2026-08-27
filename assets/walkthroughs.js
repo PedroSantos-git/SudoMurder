@@ -216,4 +216,11 @@ export const WALKTHROUGHS = {
     "As colunas 1 e 3 têm caixas, por isso o Eli fica na cadeira da coluna 7.",
     "O Bobby tem de estar com o Vic em «Computadores» — o Vic na coluna 1, o Bobby na coluna 3. Bobby é o assassino!",
   ],
+  "car-repair": [
+    "A Diane está sozinha na Sala de Espera, por isso a Crystal (sentada numa cadeira) só pode estar na única cadeira da Receção: linha 1, coluna 2. Bloqueia a linha e a coluna.",
+    "Sobra apenas uma mancha de óleo para o Brock: linha 5, coluna 4. Bloqueia a linha e a coluna.",
+    "Isto isola o Anthony na última célula dentro de um carro: linha 6, coluna 5. Bloqueia a linha e a coluna.",
+    "Isto isola a Diane na última célula da Sala de Espera: linha 3, coluna 6. Bloqueia a linha e a coluna.",
+    "Isto isola o Emilio na última célula ao lado de uma estante (na mesma divisão): linha 4, coluna 3. E o Vaughn fica na última célula: linha 2, coluna 1. O Vaughn estava sozinho com a Crystal na Receção. A Crystal é a assassina!",
+  ],
 };

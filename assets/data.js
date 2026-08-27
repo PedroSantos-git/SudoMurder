@@ -1424,3 +1424,22 @@ export const TUTORIAL_CASE = {
   ],
   victim: "Vinny", killer: "Austin",
 };
+
+// Puzzles bónus (fora dos 80 do livro) — de murdoku.com
+export const BONUS_CASES = [
+  {
+    id: "car-repair", title: "Car Repair", scan: "car-repair",
+    subtitle: "Oficina auto · dificuldade: fácil. Um extra de murdoku.com.",
+    grid: [6, 6],
+    rooms: ["Receção", "Sala de Espera", "Armazém", "Garagem"],
+    suspects: [
+      { n: "Anthony", c: "Estava dentro de um carro." },
+      { n: "Brock", c: "Estava numa mancha de óleo." },
+      { n: "Crystal", c: "Estava sentada numa cadeira." },
+      { n: "Diane", c: "Estava sozinha na Sala de Espera." },
+      { n: "Emilio", c: "Estava ao lado de uma estante." },
+    ],
+    victim: "Vaughn", killer: "Crystal",
+    note: "Podem ser ocupados: mancha de óleo, carro, cadeira. Não podem: TV, estante, mesa, planta.",
+  },
+];

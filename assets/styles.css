@@ -439,3 +439,11 @@ footer a { color: var(--text-dim); }
 .killer-pick .btn { padding: 11px 18px; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
 .btn[disabled]:hover { transform: none; box-shadow: var(--glass-shadow); }
+
+/* oil slick (occupiable) */
+.acell.has-oil::before {
+  content: ""; position: absolute; inset: 12%;
+  background: radial-gradient(ellipse at 40% 40%, #1a1c22 0 55%, #23262f 75%, transparent 100%);
+  border-radius: 48% 52% 60% 40% / 55% 45% 55% 45%;
+  filter: blur(.3px);
+}

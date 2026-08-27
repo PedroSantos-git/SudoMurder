@@ -1,4 +1,4 @@
-import { CASES, TUTORIAL_CASE } from "./data.js";
+import { CASES, TUTORIAL_CASE, BONUS_CASES } from "./data.js";
 import { RULES } from "./rules.js";
 import { WALKTHROUGHS } from "./walkthroughs.js";
 import { BOARDS, NONOCC, ICON } from "./boards.js";
@@ -23,7 +23,7 @@ const initials = (name) => name.trim().slice(0, 2);
 const $ = (sel, el = document) => el.querySelector(sel);
 const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const allCases = () => [TUTORIAL_CASE, ...CASES];
+const allCases = () => [TUTORIAL_CASE, ...CASES, ...BONUS_CASES];
 const caseById = (id) => allCases().find((c) => String(c.id) === String(id));
 
 function progress() {
@@ -114,6 +114,8 @@ function renderHome() {
       <div class="section-h"><h2>Começa por aqui</h2><span>os primeiros casos são os mais suaves</span></div>
       <div class="cases" id="feat"></div>
 
+      ${BONUS_CASES.length ? `<div class="section-h"><h2>Bónus</h2><span>puzzles extra de murdoku.com</span></div><div class="cases" id="bonus"></div>` : ""}
+
       <div class="section-h"><h2>Como funciona o site</h2></div>
       <div class="prose">
         <ul>
@@ -126,6 +128,8 @@ function renderHome() {
   `));
   const feat = $("#feat");
   featured.forEach((c) => feat.append(caseCard(c)));
+  const bonusWrap = $("#bonus");
+  if (bonusWrap) BONUS_CASES.forEach((c) => bonusWrap.append(caseCard(c)));
 }
 
 /* ============================ LIST ============================ */
@@ -176,6 +180,7 @@ function renderList() {
 
 function caseCard(c) {
   const isTut = c.id === 0;
+  const isBonus = typeof c.id === "string";
   const solved = LS.get(solvedKey(c.id));
   const guess = LS.get(guessKey(c.id));
   const [r, cc] = c.grid || [];
@@ -185,7 +190,7 @@ function caseCard(c) {
   const card = el(`
     <a class="case-card" href="#/${isTut ? "treino" : "caso/" + c.id}">
       ${badge}
-      <div class="num">${isTut ? "TREINO" : "CASO " + String(c.id).padStart(2, "0")}</div>
+      <div class="num">${isTut ? "TREINO" : isBonus ? "BÓNUS" : "CASO " + String(c.id).padStart(2, "0")}</div>
       <h3>${esc(c.title)}</h3>
       <p>${esc(c.subtitle || "")}</p>
       <div class="meta">
@@ -206,10 +211,11 @@ function renderCase(c, isTutorial) {
   const wrap = el(`<div class="wrap"></div>`);
   app.append(wrap);
 
+  const isBonus = typeof c.id === "string";
   wrap.append(el(`<a class="back" href="#/${isTutorial ? "" : "casos"}">← ${isTutorial ? "Início" : "Todos os casos"}</a>`));
   wrap.append(el(`
     <div class="case-head">
-      <div class="num">${isTutorial ? "CASO DE TREINO" : "CASO " + String(c.id).padStart(2, "0")}</div>
+      <div class="num">${isTutorial ? "CASO DE TREINO" : isBonus ? "BÓNUS" : "CASO " + String(c.id).padStart(2, "0")}</div>
       <h1>${esc(c.title)}</h1>
       <p class="sub">${esc(c.subtitle || "")}</p>
     </div>
@@ -229,7 +235,7 @@ function renderCase(c, isTutorial) {
 
   /* ---- LEFT: interactive board / grid ---- */
   const board = BOARDS[c.id];
-  const scanName = isTutorial ? "tutorial" : "case" + c.id;
+  const scanName = c.scan || (isTutorial ? "tutorial" : "case" + c.id);
   const left = el(`<div class="panel"><h4>${board ? "Tabuleiro" : "Grelha de dedução"}
     <button class="scan-link" data-scan="${scanName}">ver página do livro ↗</button></h4></div>`);
   left.querySelector(".scan-link").addEventListener("click", () => openScan(scanName, c.title));
@@ -401,7 +407,7 @@ function openScan(name, title) {
 
 /* ============================ AUTHENTIC BOARD ============================ */
 const ROOM_HUES = [200, 265, 340, 150, 35, 55, 300, 175, 240, 15];
-const OCC_FURN = new Set(["bed", "chair", "rug", "towel", "car", "horse", "mud", "stool", "sofa"]);
+const OCC_FURN = new Set(["bed", "chair", "rug", "towel", "car", "horse", "mud", "stool", "sofa", "oil"]);
 const OBJ_LABEL = {
   tv: "Televisão", plant: "Planta", table: "Mesa", shelf: "Estante", box: "Caixa",
   bed: "Cama", chair: "Cadeira", rug: "Tapete", statue: "Estátua", present: "Presente",
@@ -411,6 +417,7 @@ const OBJ_LABEL = {
   boulder: "Pedregulho", rubble: "Entulho", weaponrack: "Suporte de armas",
   easel: "Cavalete", catapult: "Catapulta", towel: "Toalha", mud: "Lama", sofa: "Sofá", stool: "Banco",
   bath: "Banheira", sink: "Lavatório", toilet: "Sanita", counter: "Bancada", cabinet: "Armário",
+  oil: "Mancha de óleo", car: "Carro",
 };
 
 function buildAuthBoard(c, board) {
@@ -537,6 +544,7 @@ function buildAuthBoard(c, board) {
           const o = board.obj[key];
           if (o) {
             if (o === "rug") cell.classList.add("has-rug");
+            else if (o === "oil") cell.classList.add("has-oil");
             else if (o === "bed") { cell.classList.add("has-bed"); cell.append(el(`<span class="oicon">${ICON.bed}</span>`)); }
             else cell.append(el(`<span class="oicon">${ICON[o] || "▪"}</span>`));
             if (NONOCC.has(o)) cell.classList.add("blk");
@@ -614,7 +622,7 @@ function buildAuthBoard(c, board) {
     legend.append(el(`<span class="lg-title">Objetos</span>`));
     types.forEach((t) => {
       const occ = OCC_FURN.has(t);
-      const ic = t === "rug" ? "▦" : (ICON[t] || "▪");
+      const ic = t === "rug" ? "▦" : t === "oil" ? "⬤" : (ICON[t] || "▪");
       legend.append(el(`<span class="lg-item ${occ ? "occ" : "blk"}"><i>${ic}</i>${esc(OBJ_LABEL[t] || t)}<b>${occ ? "ocupável" : "bloqueado"}</b></span>`));
     });
     if (board.windows.length) legend.append(el(`<span class="lg-item occ"><i class="lg-win"></i>Janela<b>na borda</b></span>`));

@@ -30,7 +30,7 @@ export const ICON = {
   cashreg: "🧾", register: "🧾", vase: "🏺", punchbag: "🥊", locker: "🔒",
   boulder: "🪨", rubble: "🧱", weaponrack: "⚔️", easel: "🖼️", catapult: "🎯",
   towel: "🧣", mud: "🟤", sofa: "🛋️", stool: "🪑",
-  bath: "🛁", sink: "🚰", toilet: "🚽", counter: "🍳", cabinet: "🗄️",
+  bath: "🛁", sink: "🚰", toilet: "🚽", counter: "🍳", cabinet: "🗄️", oil: "",
 };
 
 export const BOARDS = {
@@ -175,6 +175,35 @@ export const BOARDS = {
     solution: {
       "Aaron": "4,5", "Bruno": "2,3", "Clara": "1,6",
       "Donna": "6,4", "Evelyn": "5,2", "__VICTIM__": "3,1",
+    },
+  },
+
+  // ---- Bónus · Car Repair (murdoku.com) ----
+  "car-repair": {
+    rows: 6, cols: 6,
+    rooms: [
+      { name: "Receção", cells: ["1,1", "1,2", "1,3", "2,1", "2,2", "2,3", "3,1", "3,2", "3,3"] },
+      { name: "Sala de Espera", cells: ["1,4", "2,4", "3,4", "3,5", "3,6"] },
+      { name: "Armazém", cells: ["1,5", "1,6", "2,5", "2,6"] },
+      { name: "Garagem", cells: ["4,1", "4,2", "4,3", "4,4", "4,5", "4,6", "5,1", "5,2", "5,3", "5,4", "5,5", "5,6", "6,1", "6,2", "6,3", "6,4", "6,5", "6,6"] },
+    ],
+    obj: {
+      "1,1": "tv", "1,2": "chair",
+      "1,4": "tv",
+      "1,6": "shelf", "2,5": "plant",
+      "3,3": "shelf", "3,4": "chair", "3,5": "chair",
+      "4,4": "shelf", "4,5": "shelf",
+      "5,4": "oil", "6,2": "oil",
+    },
+    multi: [
+      { t: "table", cells: ["2,2", "2,3"] },
+      { t: "car", cells: ["5,2", "5,3"] },
+      { t: "car", cells: ["6,4", "6,5"] },
+    ],
+    windows: [],
+    solution: {
+      "Crystal": "1,2", "Diane": "3,6", "Emilio": "4,3",
+      "Brock": "5,4", "Anthony": "6,5", "__VICTIM__": "2,1",
     },
   },
 };
